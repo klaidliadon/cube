@@ -3,6 +3,7 @@ package cube
 import (
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -20,8 +21,8 @@ var roleMap = map[string]func(time.Time) string{
 }
 
 // Return a new cube using the given name and configuration.
-func New(name string, c Config) (*Cube, error) {
-	client, err := newClient(c)
+func New(name string, c Config, w io.Writer) (*Cube, error) {
+	client, err := newClient(c, w)
 	if err != nil {
 		return nil, err
 	}

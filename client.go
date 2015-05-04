@@ -2,6 +2,7 @@ package cube
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -34,14 +35,15 @@ type sampleData struct {
 }
 
 type client struct {
+	io.Writer
 	conf    Config
 	baseUrl string
 	sid     string
 	dbId    string
 }
 
-func newClient(conf Config) (*client, error) {
-	var c = client{conf: conf}
+func newClient(conf Config, w io.Writer) (*client, error) {
+	var c = client{Writer: w, conf: conf}
 	c.baseUrl = fmt.Sprintf("http://%s:%s", c.conf.Host, c.conf.Port)
 	err := c.Login()
 	if err != nil {
@@ -68,6 +70,15 @@ func (c *client) Login() error {
 	return nil
 }
 
+func (c *client) Write(text ...string) {
+	if c.Writer != nil {
+		for _, s := range text {
+			c.Writer.Write([]byte(s))
+		}
+		c.Writer.Write([]byte("\n"))
+	}
+}
+
 // Executes a request to palo and returns the rows.
 func (c *client) doRequest(url string, p params) (result []resultRow, pe *PaloError) {
 	if p == nil {
@@ -75,7 +86,9 @@ func (c *client) doRequest(url string, p params) (result []resultRow, pe *PaloEr
 	}
 	p.Set("sid", c.sid)
 	p.Set("database", c.dbId)
-	resp, err := http.Get(fmt.Sprintf("%s%s?%s", c.baseUrl, url, p.String()))
+	url = fmt.Sprintf("%s%s?%s", c.baseUrl, url, p.String())
+	c.Write("Request: ", url)
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, internalErr(fmt.Sprintf("request error: %s", err))
 	}
@@ -83,6 +96,7 @@ func (c *client) doRequest(url string, p params) (result []resultRow, pe *PaloEr
 	if err != nil {
 		return nil, internalErr(fmt.Sprintf("body read error: %s", err))
 	}
+	c.Write("Response: ", string(data))
 	if resp.StatusCode == 400 {
 		rd, err := newResultRow(string(data))
 		if err != nil {
